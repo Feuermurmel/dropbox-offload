@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import sys, os, shutil, re, subprocess, argparse, contextlib
+import sys, os, shutil, re, subprocess, argparse, contextlib, threading
 
 
 class UserError(Exception):
@@ -82,20 +82,36 @@ def rename(source, target, root):
 	remove_empty_parent(source, root)
 
 
+def start_daemon_thread(target):
+	thread = threading.Thread(target = target)
+	
+	thread.setDaemon(True)
+	thread.start()
+
+
 @contextlib.contextmanager
-def dir_watcher_queue(dir):
+def dir_watcher_event(dir):
 	if sys.platform == 'darwin':
 		args = ['fsevents', '--bare', dir]
 	elif sys.platform.startswith('linux'):
-		args = ['i', '-rm', '-e', 'i', '--format', '.', dir]
+		args = ['inotifywait', '-rm', '-e', 'close_write,move,create,delete', '--format', '.', dir]
 	else:
 		raise UserError('Unknown platform: {}', sys.platform)
 	
 	process = subprocess.Popen(args, stdout = subprocess.PIPE)
+	event = threading.Event()
+	
+	def target():
+		while True:
+			process.stdout.readline()
+			event.set()
+
+	start_daemon_thread(target)
 	
 	try:
 		def fn():
-			process.stdout.readline()
+			event.wait()
+			event.clear()
 		
 		yield fn
 	finally:
@@ -156,7 +172,7 @@ def main():
 	count = args.count
 	
 	if args.continuous:
-		with dir_watcher_queue(source_dir) as watcher:
+		with dir_watcher_event(source_dir) as watcher:
 			while True:
 				process_directories(offload_dir, source_dir, count)
 				
