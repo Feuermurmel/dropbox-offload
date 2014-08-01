@@ -139,6 +139,7 @@ class Statistics:
 	def __eq__(self, other):
 		return type(self) == type(other) and self._key == other._key
 	
+	@property
 	def _key(self):
 		return self.source_file_count, self.offload_file_count
 	
