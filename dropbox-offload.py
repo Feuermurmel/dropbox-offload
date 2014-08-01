@@ -131,8 +131,25 @@ def parse_args():
 	return parser.parse_args()
 
 
+class Statistics:
+	def __init__(self, source_file_count, offload_file_count):
+		self.source_file_count = source_file_count
+		self.offload_file_count = offload_file_count
+	
+	def __eq__(self, other):
+		return type(self) == type(other) and self._key == other._key
+	
+	def _key(self):
+		return self.source_file_count, self.offload_file_count
+	
+	def log(self):
+		log('{} files total, {} offloaded.', self.source_file_count + self.offload_file_count, self.offload_file_count)
+
+
 def process_directories(offload_dir, source_dir, count):
 	top_level_dir_names = set(iter_child_dirs(source_dir)) | set(iter_child_dirs(offload_dir))
+	source_file_count = 0
+	offload_file_count = 0
 	
 	for top_level_dir in sorted(top_level_dir_names, key = numeric_sort_key):
 		source_top_level_dir = os.path.join(source_dir, top_level_dir)
@@ -143,7 +160,10 @@ def process_directories(offload_dir, source_dir, count):
 
 		source_files = files[:count]
 		offload_files = files[count:]
-
+		
+		source_file_count += len(source_files)
+		offload_file_count += len(offload_files)
+		
 		for i in source_files:
 			source_path = os.path.join(source_top_level_dir, i)
 			offload_path = os.path.join(offload_top_level_dir, i)
@@ -167,6 +187,8 @@ def process_directories(offload_dir, source_dir, count):
 					log('Offloading: {}', os.path.join(top_level_dir, i))
 					
 					rename(source_path, offload_path)
+	
+	return Statistics(source_file_count, offload_file_count)
 
 
 def main():
@@ -177,13 +199,20 @@ def main():
 	count = args.count
 	
 	if args.continuous:
+		stat = None
+		
 		with dir_watcher_event(source_dir) as watcher:
 			while True:
-				process_directories(offload_dir, source_dir, count)
+				new_stat = process_directories(offload_dir, source_dir, count)
+				
+				if new_stat != stat:
+					stat = new_stat
+					stat.log()
 				
 				watcher()
 	else:
-		process_directories(offload_dir, source_dir, count)
+		stat = process_directories(offload_dir, source_dir, count)
+		stat.log()
 
 
 try:
