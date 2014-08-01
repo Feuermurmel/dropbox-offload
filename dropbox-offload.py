@@ -53,11 +53,11 @@ def iter_files(root):
 def remove_empty_parent(path, root):
 	parent = os.path.dirname(path)
 	
-	if is_subdir_of(parent, root) and all(i.startswith('.') and not os.path.isdir(os.path.join(path, i)) for i in os.listdir(parent)):
+	if is_subdir_of(os.path.dirname(parent), root) and all(i.startswith('.') and not os.path.isdir(os.path.join(path, i)) for i in os.listdir(parent)):
 		remove(parent, root)
 
 
-def remove(path, root):
+def remove(path, remove_parents_up_to):
 	if os.path.isdir(path):
 		log('Removing directory: {}', path)
 		
@@ -67,19 +67,20 @@ def remove(path, root):
 		
 		os.unlink(path)
 	
-	remove_empty_parent(path, root)
+	if remove_parents_up_to is not None:
+		remove_empty_parent(path, remove_parents_up_to)
 
 
-def rename(source, target, root):
-	log('{} -> {}.', source, target)
-	
+def rename(source, target, remove_parents_up_to = None):
 	parent = os.path.dirname(target)
 	
 	if not os.path.exists(parent):
 		os.makedirs(parent)
 	
 	os.rename(source, target)
-	remove_empty_parent(source, root)
+	
+	if remove_parents_up_to is not None:
+		remove_empty_parent(source, remove_parents_up_to)
 
 
 def start_daemon_thread(target):
@@ -151,6 +152,8 @@ def process_directories(offload_dir, source_dir, count):
 				if os.path.exists(source_path):
 					remove(offload_path, offload_dir)
 				else:
+					log('Activating: {}', os.path.join(top_level_dir, i))
+					
 					rename(offload_path, source_path, offload_dir)
 
 		for i in offload_files:
@@ -161,7 +164,9 @@ def process_directories(offload_dir, source_dir, count):
 				if os.path.exists(offload_path):
 					remove(offload_path, offload_dir)
 				else:
-					rename(source_path, offload_path, source_dir)
+					log('Offloading: {}', os.path.join(top_level_dir, i))
+					
+					rename(source_path, offload_path)
 
 
 def main():
