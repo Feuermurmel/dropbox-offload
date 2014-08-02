@@ -53,7 +53,7 @@ def iter_files(root):
 def remove_empty_parent(path, root):
 	parent = os.path.dirname(path)
 	
-	if is_subdir_of(os.path.dirname(parent), root) and all(i.startswith('.') and not os.path.isdir(os.path.join(path, i)) for i in os.listdir(parent)):
+	if is_subdir_of(parent, root) and all(i.startswith('.') and not os.path.isdir(os.path.join(path, i)) for i in os.listdir(parent)):
 		remove(parent, root)
 
 
