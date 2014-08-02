@@ -125,15 +125,15 @@ def parse_args():
 	
 	parser.add_argument('-c', '--continuous', action = 'store_true', default = False)
 	parser.add_argument('-n', '--count', type = int, default = 3)
-	parser.add_argument('source_dir')
+	parser.add_argument('queue_dir')
 	parser.add_argument('offload_dir')
 	
 	return parser.parse_args()
 
 
 class Statistics:
-	def __init__(self, source_file_count, offload_file_count):
-		self.source_file_count = source_file_count
+	def __init__(self, queue_file_count, offload_file_count):
+		self.queue_file_count = queue_file_count
 		self.offload_file_count = offload_file_count
 	
 	def __eq__(self, other):
@@ -141,70 +141,70 @@ class Statistics:
 	
 	@property
 	def _key(self):
-		return self.source_file_count, self.offload_file_count
+		return self.queue_file_count, self.offload_file_count
 	
 	def log(self):
-		log('{} files total, {} offloaded.', self.source_file_count + self.offload_file_count, self.offload_file_count)
+		log('{} files total, {} offloaded.', self.queue_file_count + self.offload_file_count, self.offload_file_count)
 
 
-def process_directories(offload_dir, source_dir, count):
-	top_level_dir_names = set(iter_child_dirs(source_dir)) | set(iter_child_dirs(offload_dir))
-	source_file_count = 0
+def process_directories(offload_dir, queue_dir, count):
+	top_level_dir_names = set(iter_child_dirs(queue_dir)) | set(iter_child_dirs(offload_dir))
+	queue_file_count = 0
 	offload_file_count = 0
 	
 	for top_level_dir in sorted(top_level_dir_names, key = numeric_sort_key):
-		source_top_level_dir = os.path.join(source_dir, top_level_dir)
+		queue_top_level_dir = os.path.join(queue_dir, top_level_dir)
 		offload_top_level_dir = os.path.join(offload_dir, top_level_dir)
 
-		files = sorted(set(iter_files(source_top_level_dir)) | set(
+		files = sorted(set(iter_files(queue_top_level_dir)) | set(
 			iter_files(offload_top_level_dir)), key = numeric_sort_key)
 
-		source_files = files[:count]
+		queue_files = files[:count]
 		offload_files = files[count:]
 		
-		source_file_count += len(source_files)
+		queue_file_count += len(queue_files)
 		offload_file_count += len(offload_files)
 		
-		for i in source_files:
-			source_path = os.path.join(source_top_level_dir, i)
+		for i in queue_files:
+			queue_path = os.path.join(queue_top_level_dir, i)
 			offload_path = os.path.join(offload_top_level_dir, i)
 
 			if os.path.exists(offload_path):
-				if os.path.exists(source_path):
+				if os.path.exists(queue_path):
 					remove(offload_path, offload_dir)
 				else:
 					log('Activating: {}', os.path.join(top_level_dir, i))
 					
-					rename(offload_path, source_path, offload_dir)
+					rename(offload_path, queue_path, offload_dir)
 
 		for i in offload_files:
-			source_path = os.path.join(source_top_level_dir, i)
+			queue_path = os.path.join(queue_top_level_dir, i)
 			offload_path = os.path.join(offload_top_level_dir, i)
 
-			if os.path.exists(source_path):
+			if os.path.exists(queue_path):
 				if os.path.exists(offload_path):
 					remove(offload_path, offload_dir)
 				else:
 					log('Offloading: {}', os.path.join(top_level_dir, i))
 					
-					rename(source_path, offload_path)
+					rename(queue_path, offload_path)
 	
-	return Statistics(source_file_count, offload_file_count)
+	return Statistics(queue_file_count, offload_file_count)
 
 
 def main():
 	args = parse_args()
 
-	source_dir = args.source_dir
+	queue_dir = args.queue_dir
 	offload_dir = args.offload_dir
 	count = args.count
 	
 	if args.continuous:
 		stat = None
 		
-		with dir_watcher_event(source_dir) as watcher:
+		with dir_watcher_event(queue_dir) as watcher:
 			while True:
-				new_stat = process_directories(offload_dir, source_dir, count)
+				new_stat = process_directories(offload_dir, queue_dir, count)
 				
 				if new_stat != stat:
 					stat = new_stat
@@ -212,7 +212,7 @@ def main():
 				
 				watcher()
 	else:
-		stat = process_directories(offload_dir, source_dir, count)
+		stat = process_directories(offload_dir, queue_dir, count)
 		stat.log()
 
 
