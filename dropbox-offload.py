@@ -58,12 +58,14 @@ def remove_empty_parent(path, root):
 
 
 def remove(path, remove_parents_up_to):
+	log_path = os.path.relpath(path, remove_parents_up_to)
+	
 	if os.path.isdir(path):
-		log('Removing directory: {}', path)
+		log('Removing directory: {}', log_path)
 		
 		shutil.rmtree(path)
 	else:
-		log('Removing: {}', path)
+		log('Removing: {}', log_path)
 		
 		os.unlink(path)
 	
@@ -184,10 +186,10 @@ def process_directories(offload_dir, queue_dir, count):
 			if os.path.exists(queue_path):
 				if os.path.exists(offload_path):
 					remove(offload_path, offload_dir)
-				else:
-					log('Offloading: {}', os.path.join(top_level_dir, i))
-					
-					rename(queue_path, offload_path)
+				
+				log('Offloading: {}', os.path.join(top_level_dir, i))
+				
+				rename(queue_path, offload_path)
 	
 	return Statistics(queue_file_count, offload_file_count)
 
