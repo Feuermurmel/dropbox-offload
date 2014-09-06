@@ -73,16 +73,13 @@ def remove(path, remove_parents_up_to):
 		remove_empty_parent(path, remove_parents_up_to)
 
 
-def rename(source, target, remove_parents_up_to = None):
+def rename(source, target):
 	parent = os.path.dirname(target)
 	
 	if not os.path.exists(parent):
 		os.makedirs(parent)
 	
 	os.rename(source, target)
-	
-	if remove_parents_up_to is not None:
-		remove_empty_parent(source, remove_parents_up_to)
 
 
 def start_daemon_thread(target):
@@ -177,7 +174,8 @@ def process_directories(offload_dir, queue_dir, count):
 				else:
 					log('Activating: {}', os.path.join(top_level_dir, i))
 					
-					rename(offload_path, queue_path, offload_dir)
+					rename(offload_path, queue_path)
+					remove_empty_parent(offload_path, offload_top_level_dir)
 
 		for i in offload_files:
 			queue_path = os.path.join(queue_top_level_dir, i)
