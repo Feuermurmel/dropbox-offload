@@ -116,6 +116,9 @@ def parse_args():
 	
 	args = parser.parse_args()
 	
+	if is_subdir_of(args.queue_dir, args.offload_dir) or is_subdir_of(args.offload_dir, args.queue_dir):
+		raise UserError('The queue and offload dirs may not contain each other or be the same directory.')
+	
 	if args.per_directory_limit == infinity and args.global_limit == infinity and args.size_limit == infinity:
 		args.per_directory_limit = 3
 	
