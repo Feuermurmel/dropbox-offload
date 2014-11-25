@@ -1,11 +1,14 @@
 #! /usr/bin/env python3
 
-import sys, os, shutil, re, argparse
+import sys, os, shutil, re, argparse, itertools, collections
 
 
 class UserError(Exception):
 	def __init__(self, msg, *args):
 		self.message = msg.format(*args)
+
+
+infinity = float('inf')
 
 
 def log(msg, *args):
@@ -38,7 +41,11 @@ def iter_files(root):
 				yield os.path.relpath(path, root)
 
 
-def remove_empty_parent(path, root):
+def get_size(path):
+	return os.stat(path).st_size
+
+
+def remove_empty_parents(path, root):
 	parent = os.path.dirname(path)
 	
 	if is_subdir_of(parent, root) and all(i.startswith('.') and not os.path.isdir(os.path.join(path, i)) for i in os.listdir(parent)):
@@ -58,7 +65,7 @@ def remove(path, remove_parents_up_to):
 		os.unlink(path)
 	
 	if remove_parents_up_to is not None:
-		remove_empty_parent(path, remove_parents_up_to)
+		remove_empty_parents(path, remove_parents_up_to)
 
 
 def rename(source, target):
@@ -70,74 +77,113 @@ def rename(source, target):
 	os.rename(source, target)
 
 
+def size_arg(arg):
+	suffixes = 'kmgtpezy'
+	match = re.match('(?P<number>[0-9]+)(?P<suffix>[^0-9]?)$', arg)
+	
+	if not match:
+		raise ValueError()
+	
+	suffix = match.group('suffix')
+	
+	if suffix:
+		if suffix.isupper():
+			factor_base = 1024
+		else:
+			factor_base = 1000
+		
+		pos = suffixes.find(suffix.lower())
+		
+		if pos < 0:
+			raise ValueError()
+		
+		factor = factor_base ** (pos + 1)
+	else:
+		factor = 1
+	
+	return int(match.group('number')) * factor
+
+
 def parse_args():
 	parser = argparse.ArgumentParser()
 	
-	parser.add_argument('-n', '--count', type = int, default = 3)
+	parser.add_argument('-n', '--per-directory-limit', type = int, default = infinity)
+	parser.add_argument('-N', '--global-limit', type = int, default = infinity)
+	parser.add_argument('-m', '--global-minimum', type = int, default = 1)
+	parser.add_argument('-s', '--size-limit', type = size_arg, default = infinity)
 	parser.add_argument('queue_dir')
 	parser.add_argument('offload_dir')
 	
-	return parser.parse_args()
-
-
-class Statistics:
-	def __init__(self, queue_file_count, offload_file_count):
-		self.queue_file_count = queue_file_count
-		self.offload_file_count = offload_file_count
+	args = parser.parse_args()
 	
-	def __eq__(self, other):
-		return type(self) == type(other) and self._key == other._key
+	if args.per_directory_limit == infinity and args.global_limit == infinity and args.size_limit == infinity:
+		args.per_directory_limit = 3
 	
-	@property
-	def _key(self):
-		return self.queue_file_count, self.offload_file_count
+	return args
+
+
+def process_directories(offload_dir, queue_dir, per_directory_limit, global_limit, size_limit, global_minimum):
+	files_by_dir = collections.defaultdict(list)
+	size_by_dir_file = { }
 	
-	def log(self):
-		log('{} files total, {} offloaded.', self.queue_file_count + self.offload_file_count, self.offload_file_count)
-
-
-def process_directories(offload_dir, queue_dir, count):
-	top_level_dir_names = set(iter_child_dirs(queue_dir)) | set(iter_child_dirs(offload_dir))
+	for i in [queue_dir, offload_dir]:
+		for j in iter_child_dirs(i):
+			for k in iter_files(os.path.join(i, j)):
+				files_by_dir[j].append(k)
+				size_by_dir_file[j, k] = get_size(os.path.join(i, j, k))
 	
-	for top_level_dir in sorted(top_level_dir_names, key = numeric_sort_key):
-		queue_top_level_dir = os.path.join(queue_dir, top_level_dir)
-		offload_top_level_dir = os.path.join(offload_dir, top_level_dir)
+	def key(x):
+		dir, file, successor_count = x
 		
-		files = sorted(set(iter_files(queue_top_level_dir)) | set(iter_files(offload_top_level_dir)), key = numeric_sort_key)
+		# Prefer files with less succeeding files in the same directory, then files in directories with less files. Then sort by name and use the dir as a last resort ordering criterion.
+		return -successor_count, len(files_by_dir[dir]), numeric_sort_key(file), dir
+	
+	ordered_files = sorted(((dir, i, c) for dir, files in files_by_dir.items() for c, i in enumerate(reversed(sorted(files, key = numeric_sort_key)))), key = key)
+	
+	files = []
+	count_by_directory = collections.defaultdict(lambda: per_directory_limit)
+	
+	for dir, file, _ in ordered_files:
+		size = size_by_dir_file[dir, file]
 		
-		queue_files = files[:count]
-		offload_files = files[count:]
+		if global_minimum > 0 or global_limit > 0 and count_by_directory[dir] > 0 and size_limit >= size:
+			global_minimum -= 1
+			global_limit -= 1
+			count_by_directory[dir] -= 1
+			size_limit -= size
+			
+			offload = False
+		else:
+			offload = True
 		
-		for i in queue_files:
-			queue_path = os.path.join(queue_top_level_dir, i)
-			offload_path = os.path.join(offload_top_level_dir, i)
-
-			if os.path.exists(offload_path):
-				if os.path.exists(queue_path):
-					remove(offload_path, offload_dir)
-				else:
-					log('Activating: {}', os.path.join(top_level_dir, i))
-					
-					rename(offload_path, queue_path)
-					remove_empty_parent(offload_path, offload_top_level_dir)
+		files.append((offload, dir, file))
+	
+	for offload, dir, file in files:
+		queue_path = os.path.join(queue_dir, dir, file)
+		offload_path = os.path.join(offload_dir, dir, file)
 		
-		for i in offload_files:
-			queue_path = os.path.join(queue_top_level_dir, i)
-			offload_path = os.path.join(offload_top_level_dir, i)
-
+		if offload:
 			if os.path.exists(queue_path):
 				if os.path.exists(offload_path):
 					remove(offload_path, offload_dir)
 				
-				log('Offloading: {}', os.path.join(top_level_dir, i))
+				path = os.path.join(dir, file)
+				log('Offloading: {}', path)
 				
 				rename(queue_path, offload_path)
+		else:
+			if os.path.exists(offload_path):
+				if os.path.exists(queue_path):
+					remove(offload_path, offload_dir)
+				else:
+					log('Activating: {}', os.path.join(dir, file))
+					
+					rename(offload_path, queue_path)
+					remove_empty_parents(offload_path, os.path.join(queue_dir, dir))
 
 
 def main():
-	args = parse_args()
-	
-	process_directories(args.offload_dir, args.queue_dir, args.count)
+	process_directories(**vars(parse_args()))
 
 
 try:
