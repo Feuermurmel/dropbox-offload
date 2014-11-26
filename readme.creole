@@ -1,0 +1,3 @@
+= Dropbox-Offload
+
+A simple script that moves files betreen an //active// and an //offload// directory while keeping the number of files or bytes in the active directory limited by a configurable maximum.
