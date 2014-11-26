@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import sys, os, shutil, re, argparse, itertools, collections
+import sys, os, shutil, re, argparse, collections
 
 
 class UserError(Exception):
@@ -125,7 +125,7 @@ def parse_args():
 	return args
 
 
-def process_directories(offload_dir, queue_dir, per_directory_limit, global_limit, size_limit, global_minimum):
+def process_directories(queue_dir, offload_dir, per_directory_limit, global_limit, size_limit, global_minimum):
 	files_by_dir = collections.defaultdict(list)
 	size_by_dir_file = { }
 	
@@ -136,17 +136,17 @@ def process_directories(offload_dir, queue_dir, per_directory_limit, global_limi
 				size_by_dir_file[j, k] = get_size(os.path.join(i, j, k))
 	
 	def key(x):
-		dir, file, successor_count = x
+		dir, (index, file) = x
 		
-		# Prefer files with less succeeding files in the same directory, then files in directories with less files. Then sort by name and use the dir as a last resort ordering criterion.
-		return -successor_count, len(files_by_dir[dir]), numeric_sort_key(file), dir
+		# Prefer files sorted before other files in the same directory, then files in directories with more files. Then sort by name and use the directory name as a last resort ordering criterion.
+		return index, -len(files_by_dir[dir]), numeric_sort_key(file), dir
 	
-	ordered_files = sorted(((dir, i, c) for dir, files in files_by_dir.items() for c, i in enumerate(reversed(sorted(files, key = numeric_sort_key)))), key = key)
+	ordered_files = sorted(((dir, i) for dir, files in files_by_dir.items() for i in enumerate(sorted(files, key = numeric_sort_key))), key = key)
 	
 	files = []
 	count_by_directory = collections.defaultdict(lambda: per_directory_limit)
 	
-	for dir, file, _ in ordered_files:
+	for dir, (_, file) in ordered_files:
 		size = size_by_dir_file[dir, file]
 		
 		if global_minimum > 0 or global_limit > 0 and count_by_directory[dir] > 0 and size_limit >= size:
