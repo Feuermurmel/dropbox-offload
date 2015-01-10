@@ -79,7 +79,7 @@ def rename(source, target):
 
 def size_arg(arg):
 	suffixes = 'kmgtpezy'
-	match = re.match('(?P<number>[0-9]+)(?P<suffix>[^0-9]?)$', arg)
+	match = re.match('(?P<number>[0-9.]+)(?P<suffix>[A-Za-z]?)$', arg)
 	
 	if not match:
 		raise ValueError()
@@ -101,7 +101,7 @@ def size_arg(arg):
 	else:
 		factor = 1
 	
-	return int(match.group('number')) * factor
+	return int(float(match.group('number')) * factor)
 
 
 def parse_args():
@@ -153,9 +153,12 @@ def select_files(size_by_file_by_dir, per_directory_limit, global_limit, size_li
 		num_files = 0
 		num_bytes = 0
 		
+		# Used to prevent that some files from a top-level directory are included while preceding files from the same directory are not.
+		capped_directories = set()
+		
 		for dir, (_, file) in ordered_files:
 			size = size_by_file_by_dir[dir][file]
-			queue = num_files < global_minimum or num_files_by_directory[dir] < per_directory_limit and num_files < global_limit and num_bytes <= size_limit - num_bytes
+			queue = (num_files < global_minimum or num_files_by_directory[dir] < per_directory_limit and num_files < global_limit and size <= size_limit - num_bytes) and dir not in capped_directories
 			
 			yield queue, dir, file
 			
@@ -163,6 +166,8 @@ def select_files(size_by_file_by_dir, per_directory_limit, global_limit, size_li
 				num_files_by_directory[dir] += 1
 				num_files += 1
 				num_bytes += size
+			else:
+				capped_directories.add(dir)
 	
 	return list(iter_files())
 
