@@ -107,12 +107,12 @@ def size_arg(arg):
 def parse_args():
 	parser = argparse.ArgumentParser()
 	
-	parser.add_argument('-n', '--per-directory-limit', type = int, default = infinity)
-	parser.add_argument('-N', '--global-limit', type = int, default = infinity)
-	parser.add_argument('-m', '--global-minimum', type = int, default = 1)
-	parser.add_argument('-s', '--size-limit', type = size_arg, default = infinity)
-	parser.add_argument('queue_dir')
-	parser.add_argument('offload_dir')
+	parser.add_argument('-n', '--per-directory-limit', type = int, default = infinity, help = 'Maximum number of files to put into the queue per top-level directory. By default no limit applies, unless no limit is set for both --global-limit and --size-limit, in which case is defaults to 3.')
+	parser.add_argument('-N', '--global-limit', type = int, default = infinity, help = 'Maximum number of files to put into the queue. By default no limit applies.')
+	parser.add_argument('-m', '--global-minimum', type = int, default = 1, help = 'Minimum number of files to put into the queue. This defaults to one.')
+	parser.add_argument('-s', '--size-limit', type = size_arg, default = infinity, help = 'Maximum number combined file size to put into the queue as number of bytes. You can use suffixes k, m ... y for powers of 1000 and K, M ... for powers of 1024. By default no limit applies.')
+	parser.add_argument('queue_dir', help = 'The directory into which the active files should be put.')
+	parser.add_argument('offload_dir', help = 'THe directory into which the offloaded files should be put.')
 	
 	args = parser.parse_args()
 	
@@ -143,6 +143,7 @@ def process_directories(queue_dir, offload_dir, per_directory_limit, global_limi
 	
 	ordered_files = sorted(((dir, i) for dir, files in files_by_dir.items() for i in enumerate(sorted(files, key = numeric_sort_key))), key = key)
 	
+	# Contains tuples of (offload, dir, file) for each file where offload is a boolean telling whether the file should be offloaded, dir is the top-level-directory name in which the file is and file is the path relative to the top-level directory.
 	files = []
 	count_by_directory = collections.defaultdict(lambda: per_directory_limit)
 	
