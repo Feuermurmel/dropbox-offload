@@ -125,57 +125,57 @@ def parse_args():
 	return args
 
 
-def process_directories(queue_dir, offload_dir, per_directory_limit, global_limit, size_limit, global_minimum):
-	files_by_dir = collections.defaultdict(list)
-	size_by_dir_file = { }
-	
+def collect_files_with_sizes(queue_dir, offload_dir):
+	size_by_file_by_dir = collections.defaultdict(dict)
 	for i in [queue_dir, offload_dir]:
 		for j in iter_child_dirs(i):
 			for k in iter_files(os.path.join(i, j)):
-				files_by_dir[j].append(k)
-				size_by_dir_file[j, k] = get_size(os.path.join(i, j, k))
+				size_by_file_by_dir[j][k] = get_size(os.path.join(i, j, k))
+	return size_by_file_by_dir
+
+
+def select_files(size_by_file_by_dir, per_directory_limit, global_limit, size_limit, global_minimum):
+	"""
+	Return a list of tuples (queue, dir, file) for each file where queue is a boolean telling whether the file should be queued instead of offloaded, dir is the top-level-directory name in which the file is and file is the path relative to the top-level directory.
+	"""
 	
 	def key(x):
 		dir, (index, file) = x
 		
 		# Prefer files sorted before other files in the same directory, then files in directories with more files. Then sort by name and use the directory name as a last resort ordering criterion.
-		return index, -len(files_by_dir[dir]), numeric_sort_key(file), dir
+		return index, -len(size_by_file_by_dir[dir]), numeric_sort_key(file), dir
 	
-	ordered_files = sorted(((dir, i) for dir, files in files_by_dir.items() for i in enumerate(sorted(files, key = numeric_sort_key))), key = key)
+	# Tuples (dir, (index, file)) sorted by index, file and then dir
+	ordered_files = sorted(((dir, i) for dir, size_by_file in size_by_file_by_dir.items() for i in enumerate(sorted(size_by_file.keys(), key = numeric_sort_key))), key = key)
 	
-	# Contains tuples of (offload, dir, file) for each file where offload is a boolean telling whether the file should be offloaded, dir is the top-level-directory name in which the file is and file is the path relative to the top-level directory.
-	files = []
-	count_by_directory = collections.defaultdict(lambda: per_directory_limit)
-	
-	for dir, (_, file) in ordered_files:
-		size = size_by_dir_file[dir, file]
+	def iter_files():
+		num_files_by_directory = collections.defaultdict(lambda: 0)
+		num_files = 0
+		num_bytes = 0
 		
-		if global_minimum > 0 or global_limit > 0 and count_by_directory[dir] > 0 and size_limit >= size:
-			global_minimum -= 1
-			global_limit -= 1
-			count_by_directory[dir] -= 1
-			size_limit -= size
+		for dir, (_, file) in ordered_files:
+			size = size_by_file_by_dir[dir][file]
+			queue = num_files < global_minimum or num_files_by_directory[dir] < per_directory_limit and num_files < global_limit and num_bytes <= size_limit - num_bytes
 			
-			offload = False
-		else:
-			offload = True
-		
-		files.append((offload, dir, file))
+			yield queue, dir, file
+			
+			if queue:
+				num_files_by_directory[dir] += 1
+				num_files += 1
+				num_bytes += size
 	
-	for offload, dir, file in files:
+	return list(iter_files())
+
+
+def process_files(queue_dir, offload_dir, per_directory_limit, global_limit, size_limit, global_minimum):
+	size_by_file_by_dir = collect_files_with_sizes(queue_dir, offload_dir)
+	files = select_files(size_by_file_by_dir, per_directory_limit, global_limit, size_limit, global_minimum)
+	
+	for queue, dir, file in files:
 		queue_path = os.path.join(queue_dir, dir, file)
 		offload_path = os.path.join(offload_dir, dir, file)
 		
-		if offload:
-			if os.path.exists(queue_path):
-				if os.path.exists(offload_path):
-					remove(offload_path, offload_dir)
-				
-				path = os.path.join(dir, file)
-				log('Offloading: {}', path)
-				
-				rename(queue_path, offload_path)
-		else:
+		if queue:
 			if os.path.exists(offload_path):
 				if os.path.exists(queue_path):
 					remove(offload_path, offload_dir)
@@ -184,10 +184,19 @@ def process_directories(queue_dir, offload_dir, per_directory_limit, global_limi
 					
 					rename(offload_path, queue_path)
 					remove_empty_parents(offload_path, os.path.join(queue_dir, dir))
+		else:
+			if os.path.exists(queue_path):
+				if os.path.exists(offload_path):
+					remove(offload_path, offload_dir)
+				
+				path = os.path.join(dir, file)
+				log('Offloading: {}', path)
+				
+				rename(queue_path, offload_path)
 
 
 def main():
-	process_directories(**vars(parse_args()))
+	process_files(**vars(parse_args()))
 
 
 try:
