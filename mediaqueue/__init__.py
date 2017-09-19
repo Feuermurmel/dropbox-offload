@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import errno
 import math
 import os
 import re
@@ -77,7 +78,18 @@ def rename(source, target):
     if not os.path.exists(parent):
         os.makedirs(parent)
 
-    os.rename(source, target)
+    try:
+        os.rename(source, target)
+    except OSError as e:
+        if e.errno == errno.EXDEV:
+            temp_path = os.path.join(parent, os.path.basename(source) + '~')
+
+            # Copy the file to a temporary path first.
+            shutil.copyfile(source, temp_path)
+            os.rename(temp_path, target)
+            os.unlink(source)
+        else:
+            raise
 
 
 def size_arg(arg):
