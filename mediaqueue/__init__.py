@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import math
 import os
 import re
 import shutil
@@ -11,9 +12,6 @@ import sys
 class UserError(Exception):
     def __init__(self, msg, *args):
         self.message = msg.format(*args)
-
-
-infinity = float('inf')
 
 
 def log(msg, *args):
@@ -116,7 +114,7 @@ def parse_args():
         '-n',
         '--per-directory-limit',
         type=int,
-        default=infinity,
+        default=math.inf,
         help='Maximum number of files to put into the queue per top-level '
              'directory. By default no limit applies, unless no limit is set '
              'for both --global-limit and --size-limit, in which case is '
@@ -126,7 +124,7 @@ def parse_args():
         '-N',
         '--global-limit',
         type=int,
-        default=infinity,
+        default=math.inf,
         help='Maximum number of files to put into the queue. By default no '
              'limit applies.')
 
@@ -142,7 +140,7 @@ def parse_args():
         '-s',
         '--size-limit',
         type=size_arg,
-        default=infinity,
+        default=math.inf,
         help='Maximum number combined file size to put into the queue as '
              'number of bytes. You can use suffixes k, m ... y for powers of '
              '1000 and K, M ... for powers of 1024. By default no limit '
@@ -163,7 +161,7 @@ def parse_args():
             'The queue and offload dirs may not contain each other or be the '
             'same directory.')
 
-    if args.per_directory_limit == infinity and args.global_limit == infinity and args.size_limit == infinity:
+    if args.per_directory_limit == math.inf and args.global_limit == math.inf and args.size_limit == math.inf:
         args.per_directory_limit = 3
 
     return args
@@ -233,7 +231,7 @@ def select_files(size_by_file_by_dir, per_directory_limit, global_limit, size_li
     return list(iter_files())
 
 
-def process_files(queue_dir, offload_dir, per_directory_limit, global_limit, size_limit, global_minimum):
+def main(queue_dir, offload_dir, per_directory_limit, global_limit, size_limit, global_minimum):
     size_by_file_by_dir = collect_files_with_sizes(queue_dir, offload_dir)
 
     files = select_files(
@@ -269,7 +267,7 @@ def process_files(queue_dir, offload_dir, per_directory_limit, global_limit, siz
 
 def script_main():
     try:
-        process_files(**vars(parse_args()))
+        main(**vars(parse_args()))
     except UserError as e:
         log('Error: {}', e.message)
     except KeyboardInterrupt:
