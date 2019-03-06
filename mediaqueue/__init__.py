@@ -200,13 +200,10 @@ def process_files(queue_dir, offload_dir, per_directory_limit, global_limit, siz
 				rename(queue_path, offload_path)
 
 
-def main():
-	process_files(**vars(parse_args()))
-
-
-try:
-	main()
-except UserError as e:
-	log('Error: {}', e.message)
-except KeyboardInterrupt:
-	log('Operation interrupted.')
+def script_main():
+	try:
+		process_files(**vars(parse_args()))
+	except UserError as e:
+		log('Error: {}', e.message)
+	except KeyboardInterrupt:
+		log('Operation interrupted.')
