@@ -1,5 +1,0 @@
-= Dropbox-Offload
-
-A simple script that moves files between an //active// and an //offload// directory while keeping the number of files or bytes in the //active// directory limited by a configurable maximum.
-
-This script's use is not restricted to [[https://www.dropbox.com/|Dropbox]] but this is where I'm currently using is. I keep the //active// directory (called {{{queue_dir}}} in the source) somewhere in my Dropbox and the //offload// directory somewhere on my server with a lot of storage. Then I put all the files (mostly large media files) in the //active// directory. This script will move all but the first few to the //offload// directory to prevent by Dropbox from overflowing. While I consume and delete the files in the //active// directory, the script will move more files from //offload// directory.
