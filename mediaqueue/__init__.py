@@ -147,6 +147,11 @@ def parse_args():
              'applies.')
 
     parser.add_argument(
+        '--allow-overlapping-directories',
+        action='store_true',
+        help='Allow active_dir and offload_dir to overlap.')
+
+    parser.add_argument(
         'active_dir',
         help='The directory into which the active files should be put.')
 
@@ -156,7 +161,7 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if is_subdir_of(args.active_dir, args.offload_dir) or is_subdir_of(args.offload_dir, args.active_dir):
+    if (is_subdir_of(args.active_dir, args.offload_dir) or is_subdir_of(args.offload_dir, args.active_dir)) and not args.allow_overlapping_directories:
         raise UserError(
             'The active dir and offload dirs may not contain each other or be '
             'the same directory.')
