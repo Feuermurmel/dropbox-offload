@@ -178,6 +178,8 @@ def parse_args():
             'The active dir and offload dirs may not contain each other or be '
             'the same directory.')
 
+    del args.allow_overlapping_directories
+
     if args.per_directory_limit == math.inf and args.global_limit == math.inf and args.size_limit == math.inf:
         args.per_directory_limit = 3
 
