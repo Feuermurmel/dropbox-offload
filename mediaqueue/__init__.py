@@ -116,16 +116,16 @@ def parse_args():
         type=int,
         default=math.inf,
         help='Maximum number of files to put into the active dir per '
-             'top-level directory. By default no limit applies, unless no '
-             'limit is set for both --global-limit and --size-limit, in which '
-             'case is defaults to 3.')
+             'top-level directory. If at least one of --global-limit and '
+             '--size-limit is specified, no limit is applied by default. '
+             'Otherwise this option defaults to 3.')
 
     parser.add_argument(
         '-N',
         '--global-limit',
         type=int,
         default=math.inf,
-        help='Maximum number of files to put into the active dir. By default '
+        help='Maximum number of files to put into the active dir. By default, '
              'no limit applies.')
 
     parser.add_argument(
@@ -134,17 +134,17 @@ def parse_args():
         type=int,
         default=1,
         help='Minimum number of files to put into the active dir. This '
-             'defaults to one.')
+             'defaults to 1.')
 
     parser.add_argument(
         '-s',
         '--size-limit',
         type=size_arg,
         default=math.inf,
-        help='Maximum number combined file size to put into the active dir as '
-             'number of bytes. You can use suffixes k, m ... y for powers of '
-             '1000 and K, M ... for powers of 1024. By default no limit '
-             'applies.')
+        help='Maximum number of combined file sizes to put into the active dir '
+             'as number of bytes. Use the suffixes k, m ... y for powers of '
+             '1000 and K, M ... for powers of 1024. By default, no limit is'
+             'applied.')
 
     parser.add_argument(
         '--allow-overlapping-directories',
