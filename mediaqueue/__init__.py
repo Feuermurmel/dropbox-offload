@@ -72,24 +72,24 @@ def remove(path, remove_parents_up_to):
         remove_empty_parents(path, remove_parents_up_to)
 
 
+def copy_function(src, dst):
+    temp_dst = os.path.join(os.path.dirname(dst), os.path.basename(dst) + '~')
+
+    if os.path.exists(temp_dst):
+        os.unlink(temp_dst)
+
+    # Copy the file to a temporary path first.
+    shutil.copy2(src, temp_dst, follow_symlinks=False)
+    os.rename(temp_dst, dst)
+
+
 def rename(source, target):
     parent = os.path.dirname(target)
 
     if not os.path.exists(parent):
         os.makedirs(parent)
 
-    try:
-        os.rename(source, target)
-    except OSError as e:
-        if e.errno == errno.EXDEV:
-            temp_path = os.path.join(parent, os.path.basename(source) + '~')
-
-            # Copy the file to a temporary path first.
-            shutil.copyfile(source, temp_path)
-            os.rename(temp_path, target)
-            os.unlink(source)
-        else:
-            raise
+    shutil.move(source, target, copy_function)
 
 
 def size_arg(arg):
